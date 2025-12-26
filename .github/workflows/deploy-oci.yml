@@ -90,11 +90,17 @@ jobs:
         run: |
           tar -czf app.tar.gz .next package.json package-lock.json next.config.ts public/ node_modules/
 
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
       - name: Wait for instance to be ready
         run: |
           echo "Waiting for instance to be accessible..."
           for i in {1..30}; do
-            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -i <(echo "${{ secrets.SSH_PRIVATE_KEY }}") opc@${{ needs.deploy-infrastructure.outputs.instance_ip }} "echo 'Instance ready'" 2>/dev/null; then
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -i ~/.ssh/deploy_key opc@${{ needs.deploy-infrastructure.outputs.instance_ip }} "echo 'Instance ready'" 2>/dev/null; then
               echo "Instance is ready!"
               exit 0
             fi
@@ -106,7 +112,7 @@ jobs:
 
       - name: Setup instance
         run: |
-          ssh -o StrictHostKeyChecking=no -i <(echo "${{ secrets.SSH_PRIVATE_KEY }}") opc@${{ needs.deploy-infrastructure.outputs.instance_ip }} << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key opc@${{ needs.deploy-infrastructure.outputs.instance_ip }} << 'ENDSSH'
             # Update system
             sudo yum update -y
             
@@ -128,10 +134,10 @@ jobs:
       - name: Deploy application
         run: |
           # Copy app to instance
-          scp -o StrictHostKeyChecking=no -i <(echo "${{ secrets.SSH_PRIVATE_KEY }}") app.tar.gz opc@${{ needs.deploy-infrastructure.outputs.instance_ip }}:~/app/
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key app.tar.gz opc@${{ needs.deploy-infrastructure.outputs.instance_ip }}:~/app/
           
           # Extract and start app
-          ssh -o StrictHostKeyChecking=no -i <(echo "${{ secrets.SSH_PRIVATE_KEY }}") opc@${{ needs.deploy-infrastructure.outputs.instance_ip }} << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key opc@${{ needs.deploy-infrastructure.outputs.instance_ip }} << 'ENDSSH'
             cd ~/app
             tar -xzf app.tar.gz
             
