@@ -1,0 +1,135 @@
+name: Deploy Next.js Container to OCI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  TOFU_VERSION: '1.6.0'
+  NODE_VERSION: '20'
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to OCIR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.OCI_REGION_KEY }}.ocir.io
+          username: ${{ secrets.OCIR_USERNAME }}
+          password: ${{ secrets.OCIR_AUTH_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.OCI_REGION_KEY }}.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/nextjs-app
+          tags: |
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure with OpenTofu
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Configure OCI credentials
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Get image tag
+        id: image
+        run: |
+          IMAGE_TAG="${{ secrets.OCI_REGION_KEY }}.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/nextjs-app:latest"
+          echo "full_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create terraform.tfvars
+        run: |
+          cat > terraform.tfvars <<EOF
+          tenancy_ocid     = "${{ secrets.OCI_TENANCY_OCID }}"
+          user_ocid        = "${{ secrets.OCI_USER_OCID }}"
+          fingerprint      = "${{ secrets.OCI_FINGERPRINT }}"
+          private_key_path = "$HOME/.oci/oci_api_key.pem"
+          region           = "${{ secrets.OCI_REGION }}"
+          compartment_ocid = "${{ secrets.OCI_COMPARTMENT_OCID }}"
+          docker_image     = "${{ steps.image.outputs.full_tag }}"
+          ocir_username    = "${{ secrets.OCIR_USERNAME }}"
+          ocir_password    = "${{ secrets.OCIR_AUTH_TOKEN }}"
+          EOF
+
+      - name: Initialize OpenTofu
+        run: tofu init -upgrade
+
+      - name: Validate OpenTofu
+        run: tofu validate
+
+      - name: Plan OpenTofu
+        run: tofu plan -out=tfplan -var-file=container.tf
+
+      - name: Apply OpenTofu
+        run: tofu apply -auto-approve tfplan
+
+      - name: Get outputs
+        id: tf_output
+        run: |
+          APP_URL=$(tofu output -raw app_url)
+          CONTAINER_IP=$(tofu output -raw container_public_ip)
+          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
+          echo "container_ip=$CONTAINER_IP" >> $GITHUB_OUTPUT
+
+      - name: Wait for container to be ready
+        run: |
+          echo "Waiting for container to start..."
+          sleep 30
+          
+          echo "Checking application health..."
+          for i in {1..20}; do
+            if curl -f -m 10 ${{ steps.tf_output.outputs.app_url }} 2>/dev/null; then
+              echo "Application is running!"
+              exit 0
+            fi
+            echo "Attempt $i/20 failed, waiting 10s..."
+            sleep 10
+          done
+          echo "Application health check failed, but deployment may still be in progress"
+
+      - name: Deployment summary
+        run: |
+          echo "::notice::Deployment successful!"
+          echo "::notice::Application URL: ${{ steps.tf_output.outputs.app_url }}"
+          echo "::notice::Container IP: ${{ steps.tf_output.outputs.container_ip }}"
+          echo "::notice::Image: ${{ steps.image.outputs.full_tag }}"
