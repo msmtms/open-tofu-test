@@ -36,14 +36,16 @@ jobs:
 
       - name: Create terraform.tfvars
         run: |
-          cat > terraform.tfvars <<EOF
+          cat > terraform.tfvars <<'EOF'
           tenancy_ocid     = "${{ secrets.OCI_TENANCY_OCID }}"
           user_ocid        = "${{ secrets.OCI_USER_OCID }}"
           fingerprint      = "${{ secrets.OCI_FINGERPRINT }}"
           private_key_path = "$HOME/.oci/oci_api_key.pem"
           region           = "${{ secrets.OCI_REGION }}"
           compartment_ocid = "${{ secrets.OCI_COMPARTMENT_OCID }}"
-          ssh_public_key   = "${{ secrets.SSH_PUBLIC_KEY }}"
+          ssh_public_key   = <<-EOK
+          ${{ secrets.SSH_PUBLIC_KEY }}
+          EOK
           EOF
 
       - name: Initialize OpenTofu
