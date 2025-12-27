@@ -175,16 +175,20 @@ data "oci_identity_availability_domains" "ads" {
     compartment_id = var.tenancy_ocid
 }
 
+data "oci_core_vnic" "container_vnic" {
+    vnic_id = oci_container_instances_container_instance.app.vnics[0].vnic_id
+}
+
 output "container_instance_id" {
     value = oci_container_instances_container_instance.app.id
 }
 
 output "container_public_ip" {
-    value       = try(oci_container_instances_container_instance.app.vnics[0].public_ip, "pending")
+    value       = data.oci_core_vnic.container_vnic.public_ip_address
     description = "Public IP of the container instance"
 }
 
 output "app_url" {
-    value       = try("http://${oci_container_instances_container_instance.app.vnics[0].public_ip}:3000", "pending")
+    value       = "http://${data.oci_core_vnic.container_vnic.public_ip_address}:3000"
     description = "URL to access the Next.js application"
 }
