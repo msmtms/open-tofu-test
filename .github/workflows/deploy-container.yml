@@ -63,6 +63,14 @@ jobs:
           IMAGE_TAG="${{ secrets.OCI_REGION_KEY }}.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo:latest"
           echo "full_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+      - name: Prepare OCIR credentials
+        id: ocir
+        run: |
+          OCIR_USER_B64=$(echo -n "${{ secrets.OCIR_USERNAME }}" | base64 -w 0)
+          OCIR_PASS_B64=$(echo -n "${{ secrets.OCIR_AUTH_TOKEN }}" | base64 -w 0)
+          echo "username_b64=$OCIR_USER_B64" >> $GITHUB_OUTPUT
+          echo "password_b64=$OCIR_PASS_B64" >> $GITHUB_OUTPUT
+
       - name: Create terraform.tfvars
         run: |
           cat > terraform.tfvars <<EOF
@@ -73,8 +81,8 @@ jobs:
           region           = "${{ secrets.OCI_REGION }}"
           compartment_ocid = "${{ secrets.OCI_COMPARTMENT_OCID }}"
           docker_image     = "${{ steps.image.outputs.full_tag }}"
-          ocir_username    = "${{ secrets.OCIR_USERNAME }}"
-          ocir_password    = "${{ secrets.OCIR_AUTH_TOKEN }}"
+          ocir_username    = "${{ steps.ocir.outputs.username_b64 }}"
+          ocir_password    = "${{ steps.ocir.outputs.password_b64 }}"
           EOF
 
       - name: Initialize OpenTofu
