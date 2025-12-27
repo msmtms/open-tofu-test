@@ -84,7 +84,12 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_SECRET_KEY }}
-        run: tofu init -upgrade
+          AWS_DEFAULT_REGION: ${{ secrets.OCI_REGION }}
+          AWS_EC2_METADATA_DISABLED: true
+        run: |
+          tofu init -upgrade \
+            -backend-config="access_key=${{ secrets.OCI_ACCESS_KEY }}" \
+            -backend-config="secret_key=${{ secrets.OCI_SECRET_KEY }}"
 
       - name: List resources to be destroyed
         run: |
@@ -95,6 +100,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_SECRET_KEY }}
+          AWS_EC2_METADATA_DISABLED: true
         run: tofu destroy -auto-approve
 
       - name: Verify destruction
