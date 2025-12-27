@@ -84,7 +84,7 @@ jobs:
         run: tofu validate
 
       - name: Plan OpenTofu
-        run: tofu plan -out=tfplan -var-file=container.tf
+        run: tofu plan -out=tfplan
 
       - name: Apply OpenTofu
         run: tofu apply -auto-approve tfplan
