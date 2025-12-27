@@ -14,8 +14,6 @@ jobs:
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.meta.outputs.tags }}
       
     steps:
       - name: Checkout code
@@ -31,24 +29,12 @@ jobs:
           username: ${{ secrets.OCIR_USERNAME }}
           password: ${{ secrets.OCIR_AUTH_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.OCI_REGION_KEY }}.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo
-          tags: |
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ secrets.OCI_REGION_KEY }}.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo:latest
 
   deploy-infrastructure:
     name: Deploy Infrastructure with OpenTofu
