@@ -1,0 +1,99 @@
+name: Destroy OCI Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to confirm deletion of all resources'
+        required: true
+        type: string
+
+env:
+  TOFU_VERSION: '1.6.0'
+
+jobs:
+  destroy-infrastructure:
+    name: Destroy All OCI Resources
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Verify confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "destroy" ]; then
+            echo "::error::Confirmation failed. You must type 'destroy' to proceed."
+            exit 1
+          fi
+          echo "✓ Confirmation received, proceeding with destroy..."
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Configure OCI credentials
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Get image tag
+        id: image
+        run: |
+          IMAGE_TAG="${{ secrets.OCI_REGION_KEY }}.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo:latest"
+          echo "full_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Prepare OCIR credentials
+        id: ocir
+        run: |
+          OCIR_USER_B64=$(echo -n "${{ secrets.OCIR_USERNAME }}" | base64 -w 0)
+          OCIR_PASS_B64=$(echo -n "${{ secrets.OCIR_AUTH_TOKEN }}" | base64 -w 0)
+          echo "username_b64=$OCIR_USER_B64" >> $GITHUB_OUTPUT
+          echo "password_b64=$OCIR_PASS_B64" >> $GITHUB_OUTPUT
+
+      - name: Create terraform.tfvars
+        run: |
+          cat > terraform.tfvars <<EOF
+          tenancy_ocid     = "${{ secrets.OCI_TENANCY_OCID }}"
+          user_ocid        = "${{ secrets.OCI_USER_OCID }}"
+          fingerprint      = "${{ secrets.OCI_FINGERPRINT }}"
+          private_key_path = "$HOME/.oci/oci_api_key.pem"
+          region           = "${{ secrets.OCI_REGION }}"
+          compartment_ocid = "${{ secrets.OCI_COMPARTMENT_OCID }}"
+          docker_image     = "${{ steps.image.outputs.full_tag }}"
+          ocir_username    = "${{ steps.ocir.outputs.username_b64 }}"
+          ocir_password    = "${{ steps.ocir.outputs.password_b64 }}"
+          EOF
+
+      - name: Initialize OpenTofu
+        run: tofu init -upgrade
+
+      - name: List resources to be destroyed
+        run: |
+          echo "::notice::The following resources will be destroyed:"
+          tofu state list || echo "No state file found"
+
+      - name: Destroy infrastructure
+        run: tofu destroy -auto-approve
+
+      - name: Verify destruction
+        run: |
+          if [ -f terraform.tfstate ]; then
+            RESOURCE_COUNT=$(tofu state list | wc -l)
+            if [ "$RESOURCE_COUNT" -eq "0" ]; then
+              echo "::notice::✓ All resources successfully destroyed"
+            else
+              echo "::warning::Some resources may still exist"
+            fi
+          else
+            echo "::notice::✓ All resources successfully destroyed"
+          fi
+
+      - name: Cleanup summary
+        run: |
+          echo "::notice::Destruction complete!"
+          echo "::notice::All OCI infrastructure has been removed"
+          echo "::notice::You may want to manually verify in the OCI Console"
