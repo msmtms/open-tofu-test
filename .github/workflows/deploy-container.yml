@@ -72,14 +72,16 @@ jobs:
           echo "password_b64=$OCIR_PASS_B64" >> $GITHUB_OUTPUT
 
       - name: Configure backend
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_SECRET_KEY }}
         run: |
-          # Update backend configuration with actual namespace and region
-          sed -i "s|<namespace>|${{ secrets.OCI_TENANCY_NAMESPACE }}|g" container.tf
-          sed -i "s|us-chicago-1|${{ secrets.OCI_REGION }}|g" container.tf
+          # Update backend configuration
+          sed -i "s|NAMESPACE_PLACEHOLDER|${{ secrets.OCI_TENANCY_NAMESPACE }}|g" container.tf
+          sed -i "s|REGION_PLACEHOLDER|${{ secrets.OCI_REGION }}|g" container.tf
           
-          # Set AWS credentials for S3-compatible backend
-          export AWS_ACCESS_KEY_ID="${{ secrets.OCI_ACCESS_KEY }}"
-          export AWS_SECRET_ACCESS_KEY="${{ secrets.OCI_SECRET_KEY }}"
+          echo "Backend configured:"
+          grep -A 5 'backend "s3"' container.tf
 
       - name: Create terraform.tfvars
         run: |
