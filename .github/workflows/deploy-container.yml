@@ -30,7 +30,7 @@ jobs:
           echo "${{ secrets.OCIR_AUTH_TOKEN }}" | docker login ${{ secrets.OCI_REGION_KEY }}.ocir.io -u "${{ secrets.OCIR_USERNAME }}" --password-stdin
           
           echo "Checking if repository exists..."
-          REPO_URL="${{ secrets.OCI_REGION_KEY }}.ocir.io/v2/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo/tags/list"
+          REPO_URL="ocir.${{ secrets.OCI_REGION }}.oci.oraclecloud.com/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo/tags/list"
           
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -u "${{ secrets.OCIR_USERNAME }}:${{ secrets.OCIR_AUTH_TOKEN }}" "https://$REPO_URL")
           
@@ -54,7 +54,7 @@ jobs:
       - name: Log in to OCIR
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.OCI_REGION_KEY }}.ocir.io
+          registry: ocir.${{ secrets.OCI_REGION }}.oci.oraclecloud.com
           username: ${{ secrets.OCIR_USERNAME }}
           password: ${{ secrets.OCIR_AUTH_TOKEN }}
 
@@ -62,7 +62,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.OCI_REGION_KEY }}.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo
+          images: ocir.${{ secrets.OCI_REGION }}.oci.oraclecloud.com/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo
           tags: |
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
@@ -101,7 +101,7 @@ jobs:
       - name: Get image tag
         id: image
         run: |
-          IMAGE_TAG="${{ secrets.OCI_REGION_KEY }}.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo:latest"
+          IMAGE_TAG="ocir.${{ secrets.OCI_REGION }}.oci.oraclecloud.com/${{ secrets.OCI_TENANCY_NAMESPACE }}/opentofudemo:latest"
           echo "full_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Create terraform.tfvars
