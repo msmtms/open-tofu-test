@@ -71,6 +71,16 @@ jobs:
           echo "username_b64=$OCIR_USER_B64" >> $GITHUB_OUTPUT
           echo "password_b64=$OCIR_PASS_B64" >> $GITHUB_OUTPUT
 
+      - name: Configure backend
+        run: |
+          # Update backend configuration with actual namespace and region
+          sed -i "s|<namespace>|${{ secrets.OCI_TENANCY_NAMESPACE }}|g" container.tf
+          sed -i "s|us-chicago-1|${{ secrets.OCI_REGION }}|g" container.tf
+          
+          # Set AWS credentials for S3-compatible backend
+          export AWS_ACCESS_KEY_ID="${{ secrets.OCI_ACCESS_KEY }}"
+          export AWS_SECRET_ACCESS_KEY="${{ secrets.OCI_SECRET_KEY }}"
+
       - name: Create terraform.tfvars
         run: |
           cat > terraform.tfvars <<EOF
@@ -86,6 +96,9 @@ jobs:
           EOF
 
       - name: Initialize OpenTofu
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_SECRET_KEY }}
         run: tofu init -upgrade
 
       - name: Validate OpenTofu

@@ -7,6 +7,17 @@ terraform {
             version = ">= 5.0.0"
         }
     }
+    
+    backend "s3" {
+        bucket                      = "terraform-state"
+        key                         = "container/terraform.tfstate"
+        region                      = "us-chicago-1"
+        endpoint                    = "https://<namespace>.compat.objectstorage.us-chicago-1.oraclecloud.com"
+        skip_region_validation      = true
+        skip_credentials_validation = true
+        skip_metadata_api_check     = true
+        force_path_style            = true
+    }
 }
 
 provider "oci" {

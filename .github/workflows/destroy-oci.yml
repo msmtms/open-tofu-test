@@ -54,6 +54,12 @@ jobs:
           echo "username_b64=$OCIR_USER_B64" >> $GITHUB_OUTPUT
           echo "password_b64=$OCIR_PASS_B64" >> $GITHUB_OUTPUT
 
+      - name: Configure backend
+        run: |
+          # Update backend configuration with actual namespace and region
+          sed -i "s|<namespace>|${{ secrets.OCI_TENANCY_NAMESPACE }}|g" container.tf
+          sed -i "s|us-chicago-1|${{ secrets.OCI_REGION }}|g" container.tf
+
       - name: Create terraform.tfvars
         run: |
           cat > terraform.tfvars <<EOF
@@ -69,6 +75,9 @@ jobs:
           EOF
 
       - name: Initialize OpenTofu
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_SECRET_KEY }}
         run: tofu init -upgrade
 
       - name: List resources to be destroyed
@@ -77,6 +86,9 @@ jobs:
           tofu state list || echo "No state file found"
 
       - name: Destroy infrastructure
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_SECRET_KEY }}
         run: tofu destroy -auto-approve
 
       - name: Verify destruction
