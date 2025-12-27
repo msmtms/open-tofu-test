@@ -30,12 +30,12 @@ variable "compartment_ocid" {
 
 variable "display_name_prefix" {
     type    = string
-    default = "nextjs"
+    default = "opentofudemo"
 }
 
 variable "docker_image" {
     type        = string
-    description = "Full path to Docker image in OCIR (e.g., <region-key>.ocir.io/<tenancy-namespace>/nextjs-app:latest)"
+    description = "Full path to Docker image in OCIR (e.g., <region-key>.ocir.io/<tenancy-namespace>/opentofudemo:latest)"
 }
 
 variable "ocir_username" {
@@ -152,7 +152,7 @@ resource "oci_container_instances_container_instance" "app" {
     }
 
     containers {
-        display_name = "nextjs-app"
+        display_name = "opentofudemo"
         image_url    = var.docker_image
 
         environment_variables = {
